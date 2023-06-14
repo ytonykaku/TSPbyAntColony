@@ -35,21 +35,44 @@ def start(fileName):
     instances.close()
     return graph
 
+def popSize(fileName):
+    instances = open(fileName)
 
-def generate_population(graph):
+    qtd_cities = int(instances.readline())
+    instances.close()
+
+    return qtd_cities
+
+
+def generate_first_population(graph, popSize):
     cities = []
-    sizepop = 4 * len(graph)  # tamanho da população
-    #sizepop = 800
     pop = []
 
     for x in range(len(graph)):
         cities.append(x)
 
-    for x in range(sizepop):
+    for x in range(popSize):
         pop.append(rd.sample(cities, k=len(graph)))
 
     return pop
 
+def generate_population(popSize, graph, pheromoneMap):
+    ant_route = []
+    for ant in popSize:
+        first_position = True
+        while (len(ant_rout[ant]) > popSize):
+            if (first_position == True):
+                ant_next_position = pick_next_city(ant, ant_route, graph, pheromoneMap)
+                ant_route[ant].append(ant_next_position)
+                first_position = False
+            else:
+                ant_next_position = pick_next_city(ant_next_position, ant_route, graph, pheromoneMap)
+                ant_route[ant].append(ant_next_position)
+
+        for city in popSize:
+            ant_route[ant].append(pick_next_city(city, ant_route[ant], graphCities, pheromoneMap))
+
+    return ant_route
 
 def fitness(pop, graph):
     performance = []
@@ -59,17 +82,18 @@ def fitness(pop, graph):
 
     return performance
 
+def travelTime(node_a, node_b, graph):
 
-def route_time(route, graph):
-    time = 0.0
+    traveltime = 1/graph[node_a][node_b]
 
-    for x in range(len(route) - 1):
-        if x < len(route):
-            time += graph[route[x]][route[x + 1]]
+    return traveltime
 
-    time += graph[route[0]][route[len(route) - 1]]
+def probabilisticFunction(node_a, node_b, alpha, beta, pheromoneMap):
 
-    return time
+    probability  = ((float(pheromoneMap[node_a][node_b]^alpha)) * (travelTime(node_a, node_b)^beta))
+
+    return probability
+
 
 
 def selection(pop, popFitness):
@@ -84,7 +108,7 @@ def selection(pop, popFitness):
 
     return selectedCromossomos
 
-
+#pick best ant
 def rank_routes(pop, popFitness):
     bettersFitness = {}
 
@@ -93,118 +117,43 @@ def rank_routes(pop, popFitness):
 
     return sorted(bettersFitness.items(), key=lambda item: item[1], reverse=True)
 
+#picking next city
+def pick_next_city(present_node, visited_nodes, graph, pheromoneMap):
+    best_result = 0
+    for next_city in range(0, len(graph)):
+        if next_city in visited_nodes:
+        else:
+            visited_nodes.append(next_city)
+            probabilistic_result = probabilisticFunction(present_node, next_city, 1, 5, pheromoneMap)
 
-def selectionIndex(rankpop):
-    selectionResults = []
-    eliteSize = 100  # tamanho da elite
+            if probabilistic_result > best_result:
+                best_result = probabilistic_result
+                best_next_city = next_city
 
-    df = pd.DataFrame(np.array(rankpop), columns=["Index", "Fitness"])
-    df['cum_sum'] = df.Fitness.cumsum()
-    df['cum_perc'] = 100 * df.cum_sum / df.Fitness.sum()
+    return best_next_city
 
-    selectionResults = elite(rankpop, eliteSize)
+def update_pheromoneMap(pheromoneMap, bestAnt, pheromoneEvaporationTax, Q):
+    for cities in range(0, len(bestAnt)-1):
+        if pheromoneMap[bestAnt[cities]][bestAnt[cities+1]] == 0:
+            pheromoneMap[bestAnt[cities]][bestAnt[cities+1]] = (1 - pheromoneEvaporationTax)
+        else:
+            [bestAnt[cities]][bestAnt[cities+1]] = (1-pheromoneEvaporationTax) * float([bestAnt[cities]][bestAnt[cities+1]]) + (pheromoneEvaporationTax * float)
 
-    for i in range(0, len(rankpop) - eliteSize):
-        pick = 100 * rd.random()
-
-        for i in range(0, len(rankpop)):
-            if pick <= df.iat[i, 3]:
-                selectionResults.append(rankpop[i][0])
-                break
-
-    return selectionResults
-
-
-def elite(rankpop, eliteSize):
-    selectedElite = []
-
-    if type(rankpop[0]) == tuple:
-        for i in range(0, eliteSize):
-            selectedElite.append(rankpop[i][0])
-    else:
-        for i in range(0, eliteSize):
-            selectedElite.append(rankpop[i])
-
-    return selectedElite
-
-
-def selectionCromo(pop, selected):
-    rep = []
-
-    for i in range(0, len(selected)):
-        index = selected[i]
-        rep.append(pop[index])
-
-    return rep
-
-
-def crossover(father, mother):
-    child = []
-    herancaFather = []
-    herancaMother = []
-
-    IndiceGeneFather = IndiceGeneMother = 0
-
-    while (IndiceGeneFather == IndiceGeneMother):
-        IndiceGeneFather = int(rd.random() * len(father))
-        IndiceGeneMother = int(rd.random() * len(father))
-
-    startGene = min(IndiceGeneFather, IndiceGeneMother)
-    endGene = max(IndiceGeneFather, IndiceGeneMother)
-
-    for x in range(startGene, endGene):
-        herancaFather.append(father[x])
-
-    for y in mother:
-        if y not in herancaFather:
-            herancaMother.append(y)
-
-    child = herancaFather + herancaMother
-
-    return child
-
-
-def reproduction(pop, sizeElite):
-    nextGeneration = []
-    numDescendants = len(pop) - sizeElite
-    mixedIndividuals = rd.sample(pop, len(pop))
-
-    nextGeneration = elite(pop, sizeElite)
-
-    for i in range(0, numDescendants):
-        nextGeneration.append(crossover(mixedIndividuals[i], mixedIndividuals[len(pop) - i - 1]))
-
-    return nextGeneration
-
-
-def mutate(individual, mutationRate):
-    for gene1 in range(len(individual)):
-        if (rd.random() < mutationRate):
-            gene2 = int(rd.random() * len(individual))
-
-            aux1 = individual[gene1]
-            aux2 = individual[gene2]
-
-            individual[gene1] = aux2
-            individual[gene2] = aux1
-
-    return individual
-
-
-def mutation(pop, mutationRate):
-    mutatePop = []
-
-    for i in range(len(pop)):
-        mutatePop.append(mutate(pop[i], mutationRate))
-
-    return mutatePop
-
+    return pheromoneMap
 
 def geneticAlgorithm(graphCities):
-    pop = generate_population(graphCities)
+    popSize = popSize("instances.txt")
     progress = []
+    ant_route = []
+    pheromoneMap = np.zeros([popSize, popSize], dtype=float)
+
+    for x in range (0, popSize):
+        for y in range (0, popSize):
+            pheromoneMap[x][y] = 0
+
     popFitness = fitness(pop, graphCities)
-    aux = rank_routes(pop, popFitness)
+    popPheromones = pheromones(pop, graphCities)
+    aux = rank_routes(pop, popFitness, popPheromones)
     progress.append(1 / aux[0][1])
     numGenerations = 800  # numero de gerações
 
@@ -212,16 +161,24 @@ def geneticAlgorithm(graphCities):
     print("Melhor rota inicial: " + str(pop[aux[0][0]]))
 
     for i in range(0, numGenerations):
-        popFitness = fitness(pop, graphCities)
-        selectedIndividuos = selection(pop, popFitness)
-        popCrossover = reproduction(selectedIndividuos, 100)  # tamanho da elite
-        nextGeneration = mutation(popCrossover, 0.01)  # taxa de mutação
-        pop = nextGeneration
-        progress.append(1 / rank_routes(pop, popFitness)[0][1])
+        if i == 0:
+            pop = generate_first_population(graphCities, popSize)
+            popFitness = fitness(pop, graphCities)
+            bestAnt = rank_routes(pop, popFitness)
+            pheromoneMap = update_pheromoneMap(pheromoneMap, bestAnt, 0.1, 100)
+            progress.append(1 / rank_routes(pop, popFitness)[0][1])
 
-    aux = rank_routes(pop, popFitness)
+        else:
+            new_generation = generate_population(popSize, graphCities, pheromoneMap)
+            popFitness = fitness(new_generation, graphCities)
+            bestAnt = rank_routes(new_generation, popFitness)
+            pheromoneMap = update_pheromoneMap(pheromoneMap, bestAnt, 0.00001, 100)
+            progress.append(1 / rank_routes(pop, popFitness)[0][1])
+
+
+    aux = rank_routes(new_generation, popFitness)
     print("Melhor distancia final: " + str(1 / aux[0][1]))
-    bestRoute = pop[aux[0][0]]
+    bestRoute = new_generation[aux[0][0]]
     print("Melhor rota final: " + str(bestRoute))
 
     plt.plot(progress)
