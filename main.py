@@ -1,5 +1,6 @@
 import sys
 import functions as f
+import numpy as np
 
 
 def main():
@@ -12,6 +13,5 @@ def main():
         return
 
     f.geneticAlgorithm(graphCities)
-
 
 main()

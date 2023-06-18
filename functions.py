@@ -35,7 +35,7 @@ def start(fileName):
     instances.close()
     return graph
 
-def popSize(fileName):
+def calculatepopSize(fileName):
     instances = open(fileName)
 
     qtd_cities = int(instances.readline())
@@ -51,28 +51,36 @@ def generate_first_population(graph, popSize):
     for x in range(len(graph)):
         cities.append(x)
 
-    for x in range(popSize):
-        pop.append(rd.sample(cities, k=len(graph)))
+    for x in range(len(graph)):
+        cities.remove(x)
+        sample = rd.sample(cities, k=len(graph)-1)
+        sample.insert(0, x)
+        pop.append(sample)
+        cities.append(x)
 
     return pop
 
 def generate_population(popSize, graph, pheromoneMap):
-    ant_route = []
-    for ant in popSize:
+    pop = []
+    route = []
+    for ant in range(len(graph)):
         first_position = True
-        while (len(ant_rout[ant]) > popSize):
+        for iterator in range(len(graph)):
             if (first_position == True):
-                ant_next_position = pick_next_city(ant, ant_route, graph, pheromoneMap)
-                ant_route[ant].append(ant_next_position)
+                route.clear()
+                ant_next_position = pick_next_city(ant, route, graph, pheromoneMap)
+                route.clear()
+                route.append(ant_next_position)
                 first_position = False
             else:
-                ant_next_position = pick_next_city(ant_next_position, ant_route, graph, pheromoneMap)
-                ant_route[ant].append(ant_next_position)
+                ant_next_position = pick_next_city(ant_next_position, route, graph, pheromoneMap)
+                for aux in range(0, popSize-iterator):
+                    del route[-1]
+                route.append(ant_next_position)
+        copy = route.copy()
+        pop.append(copy)
 
-        for city in popSize:
-            ant_route[ant].append(pick_next_city(city, ant_route[ant], graphCities, pheromoneMap))
-
-    return ant_route
+    return pop
 
 def fitness(pop, graph):
     performance = []
@@ -82,15 +90,44 @@ def fitness(pop, graph):
 
     return performance
 
+def pick_best_ant(pop, popFitness):
+    best_result = 0
+    best_ant = 0
+
+    for ant in range(0, len(pop)):
+        if popFitness[ant] > best_result:
+            best_ant = ant
+            best_result = popFitness[ant]
+
+    return best_ant
+
+def route_time(route, graph):
+    time = 0.0
+
+    for x in range(len(route) - 1):
+        if x < len(route):
+            time += graph[route[x]][route[x + 1]]
+
+    time += graph[route[0]][route[len(route) - 1]]
+
+    return time
+
 def travelTime(node_a, node_b, graph):
 
-    traveltime = 1/graph[node_a][node_b]
+    if graph[node_a][node_b] == 0:
+        return 0
 
-    return traveltime
+    else:
+        traveltime = 1/graph[node_a][node_b]
 
-def probabilisticFunction(node_a, node_b, alpha, beta, pheromoneMap):
+        return traveltime
 
-    probability  = ((float(pheromoneMap[node_a][node_b]^alpha)) * (travelTime(node_a, node_b)^beta))
+def probabilisticFunction(node_a, node_b, alpha, beta, pheromoneMap, graph):
+
+    first_term = pow(pheromoneMap[node_a][node_b], alpha) + rd.randint(1, 5)
+    second_term = pow(travelTime(node_a, node_b, graph), beta) + rd.randint(1, 5)
+
+    probability = first_term * second_term
 
     return probability
 
@@ -120,11 +157,14 @@ def rank_routes(pop, popFitness):
 #picking next city
 def pick_next_city(present_node, visited_nodes, graph, pheromoneMap):
     best_result = 0
+    best_next_city = 0
+
     for next_city in range(0, len(graph)):
         if next_city in visited_nodes:
+            a = 0
         else:
             visited_nodes.append(next_city)
-            probabilistic_result = probabilisticFunction(present_node, next_city, 1, 5, pheromoneMap)
+            probabilistic_result = probabilisticFunction(present_node, next_city, 1, 50000, pheromoneMap, graph)
 
             if probabilistic_result > best_result:
                 best_result = probabilistic_result
@@ -132,49 +172,56 @@ def pick_next_city(present_node, visited_nodes, graph, pheromoneMap):
 
     return best_next_city
 
-def update_pheromoneMap(pheromoneMap, bestAnt, pheromoneEvaporationTax, Q):
+def update_pheromoneMap(pheromoneMap, bestAnt, bestAntValue, pheromoneEvaporationTax, Q, bestPath, bestPathValue):
     for cities in range(0, len(bestAnt)-1):
-        if pheromoneMap[bestAnt[cities]][bestAnt[cities+1]] == 0:
-            pheromoneMap[bestAnt[cities]][bestAnt[cities+1]] = (1 - pheromoneEvaporationTax)
+        x = bestAnt[cities]
+        y = bestAnt[cities+1]
+        if pheromoneMap[x][y] == 0:
+            pheromoneMap[x][y] = (1 - pheromoneEvaporationTax)
         else:
-            [bestAnt[cities]][bestAnt[cities+1]] = (1-pheromoneEvaporationTax) * float([bestAnt[cities]][bestAnt[cities+1]]) + (pheromoneEvaporationTax * float)
+            if x and y in bestPath:
+                if x and y in bestAnt:
+                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + Q/bestAntValue + 0.001 * Q/bestPathValue
+                else:
+                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + 0 + 0.001 * Q/bestAntValue
+            else:
+                if x and y in bestAnt:
+                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + Q/bestAntValue + 0
+                else:
+                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + 0 + 0
 
     return pheromoneMap
 
 def geneticAlgorithm(graphCities):
-    popSize = popSize("instances.txt")
+    popSize = calculatepopSize("instances.txt")
     progress = []
-    ant_route = []
+    bestPath = []
+    bestPathValue = 0
     pheromoneMap = np.zeros([popSize, popSize], dtype=float)
 
-    for x in range (0, popSize):
-        for y in range (0, popSize):
-            pheromoneMap[x][y] = 0
-
+    pop = generate_first_population(graphCities, popSize)
     popFitness = fitness(pop, graphCities)
-    popPheromones = pheromones(pop, graphCities)
-    aux = rank_routes(pop, popFitness, popPheromones)
+    bestAnt = pick_best_ant(pop, popFitness)
+    pheromoneMap = update_pheromoneMap(pheromoneMap, pop[bestAnt], popFitness[bestAnt], 0.00001, 100, bestPath, bestPathValue)
+    aux = rank_routes(pop, popFitness)
     progress.append(1 / aux[0][1])
-    numGenerations = 800  # numero de gerações
+    bestPath = pop[bestAnt]
+    bestPathValue = popFitness[bestAnt]
+    numGenerations = 10000  # numero de gerações
 
     print("Melhor distancia inicial: " + str(1 / aux[0][1]))
     print("Melhor rota inicial: " + str(pop[aux[0][0]]))
 
-    for i in range(0, numGenerations):
-        if i == 0:
-            pop = generate_first_population(graphCities, popSize)
-            popFitness = fitness(pop, graphCities)
-            bestAnt = rank_routes(pop, popFitness)
-            pheromoneMap = update_pheromoneMap(pheromoneMap, bestAnt, 0.1, 100)
-            progress.append(1 / rank_routes(pop, popFitness)[0][1])
-
-        else:
-            new_generation = generate_population(popSize, graphCities, pheromoneMap)
-            popFitness = fitness(new_generation, graphCities)
-            bestAnt = rank_routes(new_generation, popFitness)
-            pheromoneMap = update_pheromoneMap(pheromoneMap, bestAnt, 0.00001, 100)
-            progress.append(1 / rank_routes(pop, popFitness)[0][1])
-
+    for i in range(0, numGenerations-1):
+        new_generation = generate_population(popSize, graphCities, pheromoneMap)
+        popFitness = fitness(new_generation, graphCities)
+        bestAnt = pick_best_ant(new_generation, popFitness)
+        pheromoneMap = update_pheromoneMap(pheromoneMap, pop[bestAnt], popFitness[bestAnt], 0.00001, 100, bestPath, bestPathValue)
+        aux = rank_routes(new_generation, popFitness)
+        progress.append(1 / aux[0][1])
+        if popFitness[bestAnt] > bestPathValue:
+            bestPathValue = popFitness[bestAnt]
+            bestPath = pop[bestAnt]
 
     aux = rank_routes(new_generation, popFitness)
     print("Melhor distancia final: " + str(1 / aux[0][1]))
