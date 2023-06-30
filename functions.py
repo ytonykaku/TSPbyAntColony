@@ -19,12 +19,12 @@ def start(fileName):
         cities_coords[x] = a, b
 
     for x in range(qtd_cities):
-        px1 = int(cities_coords[x][0])
-        py1 = int(cities_coords[x][1])
+        px1 = float(cities_coords[x][0])
+        py1 = float(cities_coords[x][1])
 
         for y in range(qtd_cities):
-            px2 = int(cities_coords[y][0])
-            py2 = int(cities_coords[y][1])
+            px2 = float(cities_coords[y][0])
+            py2 = float(cities_coords[y][1])
 
             if x == y:
                 graph[x][y] = 0
@@ -124,8 +124,8 @@ def travelTime(node_a, node_b, graph):
 
 def probabilisticFunction(node_a, node_b, alpha, beta, pheromoneMap, graph):
 
-    first_term = pow(pheromoneMap[node_a][node_b], alpha) + rd.randint(1, 5)
-    second_term = pow(travelTime(node_a, node_b, graph), beta) + rd.randint(1, 5)
+    first_term = pow(pheromoneMap[node_a][node_b], alpha)
+    second_term = pow(travelTime(node_a, node_b, graph), beta)
 
     probability = first_term * second_term
 
@@ -164,7 +164,7 @@ def pick_next_city(present_node, visited_nodes, graph, pheromoneMap):
             a = 0
         else:
             visited_nodes.append(next_city)
-            probabilistic_result = probabilisticFunction(present_node, next_city, 1, 50000, pheromoneMap, graph)
+            probabilistic_result = probabilisticFunction(present_node, next_city, 1, 5, pheromoneMap, graph)
 
             if probabilistic_result > best_result:
                 best_result = probabilistic_result
@@ -172,23 +172,21 @@ def pick_next_city(present_node, visited_nodes, graph, pheromoneMap):
 
     return best_next_city
 
-def update_pheromoneMap(pheromoneMap, bestAnt, bestAntValue, pheromoneEvaporationTax, Q, bestPath, bestPathValue):
-    for cities in range(0, len(bestAnt)-1):
-        x = bestAnt[cities]
-        y = bestAnt[cities+1]
-        if pheromoneMap[x][y] == 0:
-            pheromoneMap[x][y] = (1 - pheromoneEvaporationTax)
+def evaporate_map(pheromoneMap, pheromoneEvaporationTax):
+    for x in range(0, len(pheromoneMap)-1):
+        for y in range(0, len(pheromoneMap)-1):
+            pheromoneMap[x][y] *= pheromoneEvaporationTax
+
+    return pheromoneMap
+def update_pheromoneMap(pheromoneMap, ant, antValue, Q, bestPathValue, elitism):
+    for cities in range(0, len(ant)-1):
+        x = ant[cities]
+        y = ant[cities+1]
+        pathValue = float(pheromoneMap[x][y])
+        if antValue == bestPathValue:
+            pheromoneMap[x][y] = pathValue + (elitism * (Q / antValue))
         else:
-            if x and y in bestPath:
-                if x and y in bestAnt:
-                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + Q/bestAntValue + 0.001 * Q/bestPathValue
-                else:
-                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + 0 + 0.001 * Q/bestAntValue
-            else:
-                if x and y in bestAnt:
-                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + Q/bestAntValue + 0
-                else:
-                    pheromoneMap[x][y] = (1 - pheromoneEvaporationTax) * float(pheromoneMap[x][y]) + 0 + 0
+            pheromoneMap[x][y] = pathValue + (Q / antValue)
 
     return pheromoneMap
 
@@ -198,16 +196,17 @@ def geneticAlgorithm(graphCities):
     bestPath = []
     bestPathValue = 0
     pheromoneMap = np.zeros([popSize, popSize], dtype=float)
+    thisAnt = 0
 
     pop = generate_first_population(graphCities, popSize)
     popFitness = fitness(pop, graphCities)
     bestAnt = pick_best_ant(pop, popFitness)
-    pheromoneMap = update_pheromoneMap(pheromoneMap, pop[bestAnt], popFitness[bestAnt], 0.00001, 100, bestPath, bestPathValue)
+    pheromoneMap = update_pheromoneMap(pheromoneMap, pop[bestAnt], popFitness[bestAnt], 0.01, 100, bestPathValue)
     aux = rank_routes(pop, popFitness)
     progress.append(1 / aux[0][1])
     bestPath = pop[bestAnt]
     bestPathValue = popFitness[bestAnt]
-    numGenerations = 10000  # numero de gerações
+    numGenerations = 100  # numero de gerações
 
     print("Melhor distancia inicial: " + str(1 / aux[0][1]))
     print("Melhor rota inicial: " + str(pop[aux[0][0]]))
@@ -215,13 +214,17 @@ def geneticAlgorithm(graphCities):
     for i in range(0, numGenerations-1):
         new_generation = generate_population(popSize, graphCities, pheromoneMap)
         popFitness = fitness(new_generation, graphCities)
-        bestAnt = pick_best_ant(new_generation, popFitness)
-        pheromoneMap = update_pheromoneMap(pheromoneMap, pop[bestAnt], popFitness[bestAnt], 0.00001, 100, bestPath, bestPathValue)
+        thisAnt = pick_best_ant(new_generation, popFitness)
+        if popFitness[thisAnt] > bestPathValue:
+            bestPathValue = popFitness[thisAnt]
+            bestPath = pop[thisAnt]
+            bestAnt = thisAnt
+        pheromoneMap = evaporate_map(pheromoneMap, 0.5)
+        pheromoneMap = update_pheromoneMap(pheromoneMap, pop[bestAnt], popFitness[bestAnt], 100, bestPathValue, 0.5)
+        for ant in range(0, len(pheromoneMap)):
+            update_pheromoneMap(pheromoneMap, pop[ant], popFitness[ant], 100, bestPathValue, 0.5)
         aux = rank_routes(new_generation, popFitness)
         progress.append(1 / aux[0][1])
-        if popFitness[bestAnt] > bestPathValue:
-            bestPathValue = popFitness[bestAnt]
-            bestPath = pop[bestAnt]
 
     aux = rank_routes(new_generation, popFitness)
     print("Melhor distancia final: " + str(1 / aux[0][1]))
